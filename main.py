@@ -3,7 +3,7 @@ import json
 import plotly.express as px
 import pandas as pd
 
-#---------------------Connection zur Database und Daten abholen---------------------#
+geojson_path = 'assets/geojson_germany.geo.json'
 
 db_params = {
     'dbname': 'bevoelkerungstudierende',
@@ -12,6 +12,8 @@ db_params = {
     'host': 'localhost',
     'port': 5432
 }
+
+#---------------------Connection zur Database und Daten abholen---------------------#
 
 connection = psycopg2.connect(**db_params)
 
@@ -73,21 +75,31 @@ connection.close()
 
 df = pd.DataFrame(rows, columns=col_names)
 
-df['percentage'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
+df['prozentsatz'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
 
-# Format the percentage
-df['percentage'] = df['percentage'].map(lambda x: f'{x:.2f}%')
+# Prozente formattieren
+df['prozentsatz'] = df['prozentsatz'].map(lambda x: f'{x:.2f}%')
 
-# Display the desired output
-result = df[['bundesland', 'percentage']]
-print(result)
+converted_df = df[['bundesland', 'prozentsatz']]
+print(converted_df)
 
-# heatmap erstellen
-#import plotly.express as px
+#---------------------Heatmap erstellen---------------------#
 
-#fig = px.density_heatmap(df, x='bundesland', y='prozentsatz',
-#                         title='Prozentsatz der Studierenden in jedem Bundesland',
-#                         labels={'prozentsatz': 'Prozentsatz der Studierenden', 'bundesland': 'Bundesland'},
-#                         color_continuous_scale=px.colors.sequential.Viridis)
 
-#fig.show()
+with open(geojson_path) as f:
+    geojson_data = json.load(f)
+
+
+# Choropleth Heatmap
+
+fig = px.choropleth(
+    converted_df,
+    geojson=geojson_data,
+    locations='bundesland',
+    featureidkey='properties.name', # verbindet 'bundesland' mit den geojson regionen
+    color='prozentsatz', # welche Daten sollen visualisiert werden
+    color_continuous_scale='Viridis'
+)
+
+fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+fig.show()
