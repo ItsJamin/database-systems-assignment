@@ -78,7 +78,7 @@ df = pd.DataFrame(rows, columns=col_names)
 df['prozentsatz'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
 
 # Prozente formattieren
-df['prozentsatz'] = df['prozentsatz'].map(lambda x: f'{x:.2f}%')
+df['prozentsatz'] = round(df['prozentsatz'],2)
 
 converted_df = df[['bundesland', 'prozentsatz']]
 print(converted_df)
@@ -98,7 +98,9 @@ fig = px.choropleth(
     locations='bundesland',
     featureidkey='properties.name', # verbindet 'bundesland' mit den geojson regionen
     color='prozentsatz', # welche Daten sollen visualisiert werden
-    color_continuous_scale='Viridis'
+    color_continuous_scale='brwnyl', # andere Scales: agsunset, viridis
+    range_color=(0.00, 1.00),
+    labels={'prozentsatz':'Prozentsatz der Studierenden pro Bundesland'}
 )
 
 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
