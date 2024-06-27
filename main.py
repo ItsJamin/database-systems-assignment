@@ -50,6 +50,14 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS hochschulen (
                );
                """)
 
+cursor.execute("""CREATE TABLE IF NOT EXISTS Abschlussquote (
+               region_id INT,
+               bundesland VARCHAR(255),
+               AbschlussquoteHochschulreife FLOAT,
+               PRIMARY KEY(bundesland)
+               );   
+               """)
+
 
 query = """
 SELECT hochschulen.bundesland, SUM(hochschulen.anzahlStudierende) AS gesamtstudierende, SUM(bevoelkerung.insgesamt) AS gesamteinwohner
