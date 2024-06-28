@@ -53,16 +53,23 @@ cursor.execute("""CREATE TABLE IF NOT EXISTS hochschulen (
 cursor.execute("""CREATE TABLE IF NOT EXISTS Abschlussquote (
                region_id INT,
                bundesland VARCHAR(255),
-               AbschlussquoteHochschulreife FLOAT,
-               PRIMARY KEY(bundesland)
+               abschlussquotehochschulreife FLOAT,
+               CONSTRAINT fk_bundesland
+                FOREIGN KEY(bundesland) 
+                REFERENCES bevoelkerung(bundesland)
                );   
                """)
 
 
 query = """
-SELECT hochschulen.bundesland, SUM(hochschulen.anzahlStudierende) AS gesamtstudierende, SUM(bevoelkerung.insgesamt) AS gesamteinwohner
-FROM hochschulen, bevoelkerung
-WHERE hochschulen.bundesland = bevoelkerung.bundesland
+SELECT 
+    hochschulen.bundesland, 
+    SUM(hochschulen.anzahlStudierende) AS gesamtstudierende, 
+    SUM(bevoelkerung.insgesamt) AS gesamteinwohner,
+    MAX(Abschlussquote.abschlussquotehochschulreife) AS abschlussquotehochschulreife
+FROM hochschulen
+JOIN bevoelkerung ON hochschulen.bundesland = bevoelkerung.bundesland
+JOIN Abschlussquote ON hochschulen.bundesland = Abschlussquote.bundesland
 GROUP BY hochschulen.bundesland
 """
 
@@ -88,28 +95,24 @@ df['prozentsatz'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
 # Prozente formattieren
 df['prozentsatz'] = round(df['prozentsatz'],2)
 
-converted_df = df[['bundesland', 'prozentsatz']]
+converted_df = df[['bundesland', 'prozentsatz', 'abschlussquotehochschulreife']]
 print(converted_df)
 
-#---------------------Heatmap erstellen---------------------#
-
-
+# GeoJSON-Daten laden
 with open(geojson_path) as f:
     geojson_data = json.load(f)
 
-
-# Choropleth Heatmap
-
+# Choropleth Heatmap erstellen
 fig = px.choropleth(
     converted_df,
     geojson=geojson_data,
     locations='bundesland',
-    featureidkey='properties.name', # verbindet 'bundesland' mit den geojson regionen
-    color='prozentsatz', # welche Daten sollen visualisiert werden
-    color_continuous_scale='brwnyl', # andere Scales: agsunset, viridis
+    featureidkey='properties.name',
+    color='prozentsatz',
+    color_continuous_scale='brwnyl',
     range_color=(0.00, 1.00),
-    labels={'prozentsatz':'Prozentsatz der Studierenden pro Bundesland'}
+    labels={'prozentsatz':'Prozentsatz der Studierenden pro Bundesland'},
+    hover_data=['abschlussquotehochschulreife']
 )
-
 fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
 fig.show()
