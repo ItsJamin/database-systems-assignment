@@ -2,6 +2,12 @@ import psycopg2
 import json
 import plotly.express as px
 import pandas as pd
+import dash
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+import plotly.express as px
+import pandas as pd
+import json
 
 geojson_path = 'assets/geojson_germany.geo.json'
 
@@ -88,38 +94,73 @@ connection.close()
 
 #---------------------Auf dem Dataframe arbeiten---------------------#
 
-df = pd.DataFrame(rows, columns=col_names)
-
-df['prozentsatz'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
-
-# Prozente formattieren
-df['prozentsatz'] = round(df['prozentsatz'],2)
-
-converted_df = df[['bundesland', 'prozentsatz', 'abschlussquotehochschulreife']]
-print(converted_df)
-
-# GeoJSON-Daten laden
+# Lade GeoJSON
+geojson_path = 'assets/geojson_germany.geo.json'
 with open(geojson_path) as f:
     geojson_data = json.load(f)
 
-# Choropleth Heatmap erstellen
-fig = px.choropleth(
-    converted_df,
-    geojson=geojson_data,
-    locations='bundesland',
-    featureidkey='properties.name',
-    color='prozentsatz',
-    color_continuous_scale='brwnyl',
-    range_color=(0.00, 1.00),
-    hover_data=['abschlussquotehochschulreife']
+# Erstelle DataFrame
+df = pd.DataFrame(rows, columns=col_names)
+df['prozentsatz'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
+df['prozentsatz'] = round(df['prozentsatz'], 2)
+converted_df = df[['bundesland', 'prozentsatz', 'abschlussquotehochschulreife']]
+
+#---------------------Dash-App---------------------#
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    html.Button('Select All', id='select-all-button', n_clicks=0),
+    dcc.Dropdown(
+        id='bundesland-dropdown',
+        options=[{'label': bundesland, 'value': bundesland} for bundesland in converted_df['bundesland']],
+        value=[],
+        multi=True,
+        placeholder="Select Bundesland"
+    ),
+    dcc.Graph(id='choropleth-graph')
+])
+
+@app.callback(
+    Output('bundesland-dropdown', 'value'),
+    [Input('select-all-button', 'n_clicks')],
+    [State('bundesland-dropdown', 'options')]
 )
+def select_all_bundeslaender(n_clicks, options): # wähle alle Bundesländer
+    return [option['value'] for option in options]
 
-fig.update_layout(
-    coloraxis_colorbar=dict(
-    title="Studierende pro Einwohneranzahl",
-    tickvals=[0.0,0.2,0.4,0.60,0.8,1.0],
-    ticktext=["0.00%", "0.20%", "0.40%", "0.60%","0.80%","1.00%"],
-))
+@app.callback(
+    Output('choropleth-graph', 'figure'),
+    [Input('bundesland-dropdown', 'value')]
+)
+def update_figure(selected_bundeslaender):
+    filtered_df = converted_df
+    if selected_bundeslaender:
+        filtered_df = converted_df[converted_df['bundesland'].isin(selected_bundeslaender)]
+    
+    fig = px.choropleth(
+        filtered_df,
+        geojson=geojson_data,
+        locations='bundesland',
+        featureidkey='properties.name',
+        color='prozentsatz',
+        color_continuous_scale='brwnyl',
+        range_color=(0.00, 1.00),
+        hover_data=['abschlussquotehochschulreife']
+    )
+    
+    fig.update_layout(
+        coloraxis_colorbar=dict(
+            title="Studierende pro Einwohneranzahl",
+            tickvals=[0.0, 0.2, 0.4, 0.60, 0.8, 1.0],
+            ticktext=["0.00%", "0.20%", "0.40%", "0.60%", "0.80%", "1.00%"],
+        ),
+        geo=dict(
+            fitbounds="locations",
+            visible=False
+        )
+    )
+    
+    return fig
 
-
-fig.show()
+if __name__ == '__main__':
+    app.run_server(debug=True)
