@@ -111,8 +111,15 @@ fig = px.choropleth(
     color='prozentsatz',
     color_continuous_scale='brwnyl',
     range_color=(0.00, 1.00),
-    labels={'prozentsatz':'Prozentsatz der Studierenden pro Bundesland'},
     hover_data=['abschlussquotehochschulreife']
 )
-fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+
+fig.update_layout(
+    coloraxis_colorbar=dict(
+    title="Studierende pro Einwohneranzahl",
+    tickvals=[0.0,0.2,0.4,0.60,0.8,1.0],
+    ticktext=["0.00%", "0.20%", "0.40%", "0.60%","0.80%","1.00%"],
+))
+
+
 fig.show()
