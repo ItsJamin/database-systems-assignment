@@ -4,10 +4,7 @@ import plotly.express as px
 import pandas as pd
 import dash
 from dash import dcc, html
-from dash.dependencies import Input, Output, State
-import plotly.express as px
-import pandas as pd
-import json
+from dash.dependencies import Input, Output
 
 geojson_path = 'assets/geojson_germany.geo.json'
 
@@ -25,7 +22,7 @@ connection = psycopg2.connect(**db_params)
 
 cursor = connection.cursor()
 
-# erstelle die table bevoelkerung
+# Erstelle die Table bevoelkerung
 cursor.execute("""CREATE TABLE IF NOT EXISTS bevoelkerung (
                region_id INT,
                bundesland VARCHAR(255),
@@ -84,32 +81,29 @@ cursor.execute(query)
 rows = cursor.fetchall()
 col_names = [desc[0] for desc in cursor.description]
 
-
-# connection beenden
+# Verbindung beenden
 connection.commit()
 cursor.close()
 connection.close()
 
-
-
 #---------------------Auf dem Dataframe arbeiten---------------------#
 
 # Lade GeoJSON
-geojson_path = 'assets/geojson_germany.geo.json'
 with open(geojson_path) as f:
     geojson_data = json.load(f)
 
 # Erstelle DataFrame
 df = pd.DataFrame(rows, columns=col_names)
-df['prozentsatz'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
-df['prozentsatz'] = round(df['prozentsatz'], 2)
-converted_df = df[['bundesland', 'prozentsatz', 'abschlussquotehochschulreife']]
+df['Studierende in %'] = (df['gesamtstudierende'] / df['gesamteinwohner']) * 100
+df['Studierende in %'] = round(df['Studierende in %'], 2)
+df['Hochschulreife Abschlussquote in %'] = df['abschlussquotehochschulreife']
+converted_df = df[['bundesland', 'Studierende in %', 'Hochschulreife Abschlussquote in %']]
 
 #---------------------Dash-App---------------------#
 app = dash.Dash(__name__)
 
 app.layout = html.Div([
-    html.Button('Select All', id='select-all-button', n_clicks=0),
+    # Filterbox für Bundesländer
     dcc.Dropdown(
         id='bundesland-dropdown',
         options=[{'label': bundesland, 'value': bundesland} for bundesland in converted_df['bundesland']],
@@ -117,42 +111,47 @@ app.layout = html.Div([
         multi=True,
         placeholder="Select Bundesland"
     ),
+    # Switch zwischen Ansicht welcher Metrik
+    dcc.RadioItems(
+        id='metric-radio',
+        options=[
+            {'label': 'Studierende pro Einwohner', 'value': 'Studierende in %'},
+            {'label': 'Abschlussquote Hochschulreife', 'value': 'Hochschulreife Abschlussquote in %'}
+        ],
+        value='Studierende in %',
+        labelStyle={'display': 'inline-block'}
+    ),
     dcc.Graph(id='choropleth-graph')
 ])
 
 @app.callback(
-    Output('bundesland-dropdown', 'value'),
-    [Input('select-all-button', 'n_clicks')],
-    [State('bundesland-dropdown', 'options')]
-)
-def select_all_bundeslaender(n_clicks, options): # wähle alle Bundesländer
-    return [option['value'] for option in options]
-
-@app.callback(
     Output('choropleth-graph', 'figure'),
-    [Input('bundesland-dropdown', 'value')]
+    [Input('bundesland-dropdown', 'value'), Input('metric-radio', 'value')]
 )
-def update_figure(selected_bundeslaender):
+def update_figure(selected_bundeslaender, selected_metric):
     filtered_df = converted_df
     if selected_bundeslaender:
         filtered_df = converted_df[converted_df['bundesland'].isin(selected_bundeslaender)]
+    
+    colorscale = 'brwnyl' if selected_metric == 'Studierende in %' else 'viridis'
+    range_color = (0.00, 1.00) if selected_metric == 'Studierende in %' else (0, 100)
     
     fig = px.choropleth(
         filtered_df,
         geojson=geojson_data,
         locations='bundesland',
         featureidkey='properties.name',
-        color='prozentsatz',
-        color_continuous_scale='brwnyl',
-        range_color=(0.00, 1.00),
-        hover_data=['abschlussquotehochschulreife']
+        color=selected_metric,
+        color_continuous_scale=colorscale,
+        range_color=range_color,
+        hover_data=['Hochschulreife Abschlussquote in %'] if selected_metric == 'Studierende in %' else ['Studierende in %']
     )
     
     fig.update_layout(
         coloraxis_colorbar=dict(
-            title="Studierende pro Einwohneranzahl",
-            tickvals=[0.0, 0.2, 0.4, 0.60, 0.8, 1.0],
-            ticktext=["0.00%", "0.20%", "0.40%", "0.60%", "0.80%", "1.00%"],
+            title="Studierende pro Einwohneranzahl" if selected_metric == 'Studierende in %' else "Abschlussquote Hochschulreife",
+            tickvals=[0.0, 0.2, 0.4, 0.60, 0.8, 1.00] if selected_metric == 'Studierende in %' else [0, 20, 40, 60, 80, 100],
+            ticktext=["0.00%", "0.20%", "0.40%", "0.60%", "0.80%", "1.00%"] if selected_metric == 'Studierende in %' else ["0%", "20%", "40%", "60%", "80%", "100%"],
         ),
         geo=dict(
             fitbounds="locations",
